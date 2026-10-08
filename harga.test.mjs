@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DISTRICTS } from './districts.js'
-import { monthsToTry, cheapest, bestShops, splitTrip, matches, rank, dropOutliers, nearestDistrict, readPrices, lookupMap, packSnapshot, unpackSnapshot, monthsBefore, median, typicalPrices, packHistory, unpackHistory, priceChange, SRC } from './harga.js'
+import { monthsToTry, cheapest, bestShops, splitTrip, matches, rank, dropOutliers, nearestDistrict, readPrices, lookupMap, packSnapshot, unpackSnapshot, monthsBefore, median, typicalPrices, packHistory, unpackHistory, priceChange, changeSince, basketHistory, mapsUrl, SRC } from './harga.js'
 
 assert.deepEqual(monthsToTry(new Date('2026-09-30T17:00:00Z')), ['2026-10', '2026-09', '2026-08']) // 01:00 MYT on 1 Oct
 assert.deepEqual(monthsToTry(new Date('2026-01-05T00:00:00Z')), ['2026-01', '2025-12', '2025-11'])
@@ -75,6 +75,18 @@ assert.deepEqual(hist.items.get(3), [null, 7, null])
 assert.throws(() => unpackHistory({}))
 assert.deepEqual(priceChange(hist.months, [5, null, 4]), { change: 4 / 5 - 1, from: 5, to: 4, fromMonth: '2026-07', toMonth: '2026-09' })
 assert.equal(priceChange(hist.months, [null, null, 2]), null)
+
+// Basket cost over time
+assert.deepEqual(changeSince(hist.months, [null, 5, 4]), { change: 4 / 5 - 1, from: 5, to: 4, fromMonth: '2026-08', toMonth: '2026-09' })
+assert.equal(changeSince(hist.months, [null, null, 4]), null)
+assert.deepEqual(basketHistory(hist, [{ item: 1, qty: 2 }]), [10, 9, 8])
+assert.deepEqual(basketHistory(hist, [{ item: 1, qty: 1 }, { item: 3, qty: 1 }]), [null, 11.5, null]) // item 3 only priced in Aug
+assert.deepEqual(basketHistory(hist, []), [0, 0, 0])
+
+// Directions
+assert.equal(mapsUrl({ premise: 'KEDAI A', address: ' Jalan 1 ', district: 'Muar', state: 'Johor' }),
+  'https://www.google.com/maps/search/?api=1&query=KEDAI%20A%2C%20Jalan%201%2C%20Muar%2C%20Johor')
+assert.ok(mapsUrl({ premise: 'KEDAI B', address: null, district: 'Muar' }).endsWith('query=KEDAI%20B%2C%20Muar'))
 
 // The browser imports hyparquet from a CDN; keep those pinned versions equal to the lockfile (npm updates only touch the lockfile)
 const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url))).packages

@@ -1,4 +1,4 @@
-import { SRC, monthsToTry, readPrices, lookupMap, unpackSnapshot, unpackHistory, priceChange, median, cheapest, bestShops, splitTrip, matches, rank, nearestDistrict } from './harga.js'
+import { SRC, monthsToTry, readPrices, lookupMap, unpackSnapshot, unpackHistory, priceChange, changeSince, basketHistory, mapsUrl, median, cheapest, bestShops, splitTrip, matches, rank, nearestDistrict } from './harga.js'
 import { LANGS, T, CATS } from './i18n.js'
 import { ITEMS } from './items.js'
 import { DISTRICTS } from './districts.js'
@@ -21,6 +21,7 @@ const I = {
   search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
   alert: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>'),
   wifi: svg('<path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><path d="M3 3l18 18"/>'),
+  nav: svg('<path d="M3 11 21 3l-8 18-2-8z"/>'),
   locate: svg('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>'),
 }
 // Order matches T[lang].groups. Each group has an icon and a colour token (--g0..--g8).
@@ -116,6 +117,7 @@ async function loadHistory() {
     history = unpackHistory(await r.json())
     const dlg = $('#detail')
     if (dlg.open) dlg.querySelector('.history-slot').innerHTML = trend(Number(dlg.dataset.code))
+    if (ui.list.length) renderBasket(area())
   } catch (e) { console.info('No price history:', e.message) }
 }
 
@@ -144,6 +146,8 @@ const catLabel = i => {
 }
 const catSearch = i => [i.item_category, ...(CATS[i.item_category] ?? [])].join(' ').toLowerCase()
 const shop = code => premises.get(code) ?? { premise: `#${code}` }
+// Opens Google Maps searching for the shop. Icon-only in the popup's shop list, labelled in the basket plan.
+const mapLink = (p, text) => `<a class="map-btn${text ? ' text' : ''}" href="${esc(mapsUrl(p))}" target="_blank" rel="noopener" aria-label="${esc(t().directionsTo(nice(p.premise)))}">${I.nav}${text ? `<span>${t().directions}</span>` : ''}</a>`
 const shopType = p => esc(p.premise_type?.trim() ?? '')
 function stats(shops) {
   const p = shops.map(s => s.price)
@@ -258,20 +262,25 @@ function openDetail(code) {
       return `<li class="${x.price === s.lo ? 'lo' : ''}" style="--i:${n}"><span class="rk">${n + 1}</span>
         <div><div class="nm">${esc(nice(p.premise))}</div><div class="loc">${esc(p.district ?? '')} · ${shopType(p)}</div></div>
         <div class="p cond">${rm(x.price)}<small>${day(x.date)}</small></div>
+        ${mapLink(p)}
         <div class="bar-line"><i style="width:${(x.price / s.hi) * 100}%"></i></div></li>`
     }).join('')}</ol>
     ${shops.length > 25 ? `<p class="muted" style="padding:0 24px">${t().more(shops.length - 25)}</p>` : ''}
     <div class="dlg-foot">${cta(code)}</div>`
   if (!dlg.open) dlg.showModal()
+  // Keep a focused map link clear of the sticky header and footer when tabbing through the shop list
+  dlg.style.scrollPadding = `${dlg.querySelector('.dlg-head').offsetHeight + 8}px 0 ${dlg.querySelector('.dlg-foot').offsetHeight + 8}px`
 }
-// 12-month line of the typical nationwide price, with the change against the month before the latest.
 const monthName = m => new Date(m + '-01T00:00:00Z').toLocaleDateString(locale(), { month: 'short', year: 'numeric', timeZone: 'UTC' })
-function trend(code) {
-  const series = history?.items.get(code), ch = series && priceChange(history.months, series)
-  if (!ch) return ''
+const changeBadge = ch => {
+  const pct = Math.round(Math.abs(ch.change) * 100), from = monthName(ch.fromMonth)
+  return !pct ? `<span class="badge flat">${t().trendSame(from)}</span>`
+    : ch.change > 0 ? `<span class="badge warn">${t().trendUp(pct, from)}</span>` : `<span class="badge good">${t().trendDown(pct, from)}</span>`
+}
+// Monthly line chart. Null months break the line; the axis shows the first and last known month and value.
+function chart(series, { title, badge, label, color, cls = '' }) {
   const known = series.filter(p => p != null), lo = Math.min(...known), hi = Math.max(...known)
   const W = 600, H = 80, x = i => (i / (series.length - 1)) * W, y = p => H - 4 - ((p - lo) / (hi - lo || 1)) * (H - 8)
-  // Break the line where a month has no price
   const segs = [], pts = []
   series.forEach((p, i) => {
     if (p == null) return
@@ -282,18 +291,34 @@ function trend(code) {
   })
   const line = segs.map(s => 'M' + s.map(p => p.join(' ')).join('L')).join('')
   const area = segs.filter(s => s.length > 1).map(s => `M${s[0][0]} ${H}L${s.map(p => p.join(' ')).join('L')}L${s.at(-1)[0]} ${H}Z`).join('')
-  const pct = Math.round(Math.abs(ch.change) * 100), from = monthName(ch.fromMonth)
-  const badge = !pct ? `<span class="badge flat">${t().trendSame(from)}</span>`
-    : ch.change > 0 ? `<span class="badge warn">${t().trendUp(pct, from)}</span>` : `<span class="badge good">${t().trendDown(pct, from)}</span>`
-  const first = series.findIndex(p => p != null)
-  return `<section class="history" style="--c:var(--g${groupIdx(items.get(code).item_group)})">
-    <div class="history-head"><h3 class="label">${t().trend}</h3>${badge}</div>
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t().trendLabel(rm(series[first]), monthName(history.months[first]), rm(ch.to), monthName(ch.toMonth)))}">
+  const first = series.findIndex(p => p != null), last = series.findLastIndex(p => p != null)
+  return `<section class="history ${cls}" style="--c:${color}">
+    <div class="history-head"><h3 class="label">${title}</h3>${badge}</div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
       <path class="area" d="${area}"/><path class="line" d="${line}" pathLength="1"/>
       <circle class="end" cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="6"/>
     </svg>
-    <div class="history-axis" aria-hidden="true"><span>${monthName(history.months[first])} · <b>${rm(series[first])}</b></span><span>${monthName(ch.toMonth)} · <b>${rm(ch.to)}</b></span></div>
+    <div class="history-axis" aria-hidden="true"><span>${monthName(history.months[first])} · <b>${rm(series[first])}</b></span><span>${monthName(history.months[last])} · <b>${rm(series[last])}</b></span></div>
   </section>`
+}
+// Item popup: typical nationwide price, with the change against the month before the latest.
+function trend(code) {
+  const series = history?.items.get(code), ch = series && priceChange(history.months, series), span = series && changeSince(history.months, series)
+  if (!ch) return ''
+  return chart(series, {
+    title: t().trend, badge: changeBadge(ch), color: `var(--g${groupIdx(items.get(code).item_group)})`,
+    label: t().trendLabel(rm(span.from), monthName(span.fromMonth), rm(span.to), monthName(span.toMonth)),
+  })
+}
+// Basket: what this list cost each month at typical nationwide prices, compared with the earliest complete month.
+function basketTrend(list) {
+  if (!history || !list.length) return ''
+  const series = basketHistory(history, list), ch = changeSince(history.months, series)
+  if (!ch) return ''
+  return chart(series, {
+    title: t().basketTrend, badge: changeBadge(ch), color: 'var(--g0)', cls: 'basket-trend',
+    label: t().basketLabel(rm(ch.from), monthName(ch.fromMonth), rm(ch.to), monthName(ch.toMonth)),
+  })
 }
 const cta = code => inBasket(code)
   ? `<button class="cta secondary" data-toggle="${code}">${I.check} ${t().inBasket}</button>`
@@ -325,7 +350,7 @@ function renderBasket(a) {
   const shopHead = (code, amount) => {
     const p = shop(code)
     return `<div class="shop"><span>${esc(nice(p.premise))}</span><span class="cond">${rm(amount)}</span></div>
-      <div class="sm">${esc(p.district ?? '')} · ${shopType(p)}</div>`
+      <div class="sm">${esc(p.district ?? '')} · ${shopType(p)}</div>${mapLink(p, true)}`
   }
   const dots = picks => `<div class="dots">${picks.map(x => `<span title="${esc(itemName(x.item))} ×${x.qty}">${thumb(x.item)}</span>`).join('')}</div>`
 
@@ -356,7 +381,8 @@ function renderBasket(a) {
         <button data-mode="split" aria-pressed="${ui.mode === 'split'}">${t().cheapest}</button>
         <button data-mode="one" aria-pressed="${ui.mode === 'one'}">${t().oneStop}</button>
       </div>${result}
-    </div>`
+    </div>
+    ${basketTrend(list)}`
   const shown = ui.mode === 'split' ? split.total : top?.total ?? 0
   bar.innerHTML = `<div><small class="label">${t().items(count)}</small><strong class="cond">${rm(shownTotal)}</strong></div><span class="go" aria-hidden="true">${t().viewPlan}</span>`
   bar.setAttribute('aria-label', `${t().viewPlan}: ${t().items(count)}, ${rm(shown)}`)

@@ -69,11 +69,11 @@ button { cursor: pointer; border: 0; background: none; padding: 0; -webkit-tap-h
 svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Buttons: one system. Every clickable control is a pill, presses to .95, and changes colour on hover. */
-.add, .cta, .pill-btn, .go, .chip, .lang button, .icon-btn, .dlg-close, .step button, .ghost, .clear-q, .seg button {
+.add, .cta, .pill-btn, .go, .chip, .lang button, .icon-btn, .dlg-close, .step button, .ghost, .clear-q, .seg button, .map-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font-weight: 700; white-space: nowrap;
   transition: transform var(--d-fast) var(--ease-out), background var(--d-fast), color var(--d-fast), border-color var(--d-fast), box-shadow var(--d-fast);
 }
-:is(.add, .cta, .pill-btn, .go, .chip, .lang button, .icon-btn, .dlg-close, .step button, .ghost, .clear-q, .seg button, .bar):active { transform: scale(.95); }
+:is(.add, .cta, .pill-btn, .go, .chip, .lang button, .icon-btn, .dlg-close, .step button, .ghost, .clear-q, .seg button, .map-btn, .bar):active { transform: scale(.95); }
 /* Primary: yellow */
 .add, .cta, .pill-btn, .go { background: var(--accent); color: var(--accent-ink); }
 @media (hover: hover) { :is(.add, .cta, .pill-btn):hover, .bar:hover .go { background: var(--accent-hover); } }
@@ -95,6 +95,12 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 .icon-btn, .add, .dlg-close { width: var(--h-md); }
 .lang button, .step button, .ghost, .go, .clear-q { height: var(--h-sm); min-width: var(--h-sm); }
 .ghost { padding: 0 14px; font-size: 13px; }
+/* Map link: soft pill on light surfaces, translucent on the dark plan panel */
+.map-btn { height: var(--h-sm); min-width: var(--h-sm); background: var(--sunk); color: var(--ink); text-decoration: none; }
+.map-btn svg.i { width: 16px; height: 16px; }
+.map-btn.text { padding: 0 14px 0 12px; gap: 6px; font-size: 13px; margin-top: 8px; }
+.result .map-btn { background: var(--hero-soft); color: var(--hero-ink); }
+@media (hover: hover) { .map-btn:hover { background: var(--line); } .result .map-btn:hover { background: rgb(255 255 255 / .16); } }
 
 /* Top bar */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0; }
@@ -297,9 +303,12 @@ dialog.closing::backdrop { animation: fade var(--d-fast) var(--ease-in) reverse 
 .history .end { fill: var(--c); stroke: var(--sunk); stroke-width: 3; }
 .history-axis { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
 .history-axis b { color: var(--ink); font-weight: 800; }
+/* The basket re-renders on every edit, so its chart does not replay the draw-in */
+.basket-trend { margin: 0 10px 10px; }
+.basket-trend .line { animation: none; }
 .badge.flat { background: var(--surface); color: var(--muted); }
 .shoplist { list-style: none; margin: 0; padding: 6px 24px 16px; }
-.shoplist li { display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.shoplist li { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .shoplist .rk { font-size: 13px; font-weight: 800; color: var(--muted); }
 .shoplist .nm { font-weight: 700; font-size: 14px; }
 .shoplist .loc { font-size: 13px; color: var(--muted); }

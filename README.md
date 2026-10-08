@@ -12,6 +12,8 @@ Find the cheapest groceries in Malaysia, using official government price data.
 - **Near you.** Filter by state and district, or tap "Near me". Your location never leaves your device.
 - **Plan a shop.** Add items to a basket and choose between the cheapest split across several shops and the best single shop.
 - **Price history.** See how an item's typical price across Malaysia moved over the last 12 months, and whether it is cheaper or dearer than last month.
+- **Basket over time.** See what your basket would have cost each month at typical prices, e.g. RM84 in March and RM91 now.
+- **Directions.** Open any shop in Google Maps with one tap.
 
 ## How it works
 
@@ -63,5 +65,6 @@ About 40 branded items have a photo from [Open Food Facts](https://world.openfoo
 
 - The price history is a nationwide typical price, not your area's, and the current month is still in progress.
 - Each price is the shop's latest report this month, so it may be a few weeks old. The app shows the report date.
+- PriceCatcher has no shop coordinates, so Directions searches Google Maps by shop name and address. It can occasionally pick a branch with the same name.
 - "Near me" picks the closest district centre, so near a border it can choose the neighbouring district.
 - The English and Chinese item names have not been checked by a native speaker.

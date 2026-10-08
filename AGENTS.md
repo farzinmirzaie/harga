@@ -27,7 +27,8 @@ npm run images      # regenerate product photos (needs review, see README)
 - Use the existing button classes and tokens. Every clickable element is a pill with a hover state, a `:active` scale of .95 and a height of `--h-sm`, `--h-md` or `--h-lg`. Use the motion tokens `--d-*`, `--ease-*` and `--spring`, not raw durations.
 - Basket edits call `basketChanged()`, which updates only the basket and the affected card buttons. Do not re-render the item grid for them: it flashes and replays the entrance animation.
 - Close dialogs with `closeDialog()` so the exit animation runs. Esc and backdrop clicks already route there.
-- Accessibility: icon-only buttons need a translated `aria-label` that names the item. All motion must stop under `prefers-reduced-motion`. After UI changes, run axe-core in the page (WCAG 2.2 AA plus best-practice) in light mode, dark mode and with a dialog open. All three are currently clean.
+- Accessibility: icon-only buttons need a translated `aria-label` that names the item. All motion must stop under `prefers-reduced-motion`. After UI changes, run axe-core in the page (WCAG 2.2 AA plus best-practice) in light mode, dark mode and with a dialog open. All three are clean except one known `target-size` hit: with the item popup open, the map link in whichever shop row sits under the sticky Add button is flagged as partially obscured. That is the sticky footer by design; `openDetail()` sets `scroll-padding` so a focused link always scrolls clear of the header and footer.
+- Directions link to a Google Maps search built by `mapsUrl()` (name, address, district, state). PriceCatcher has no coordinates.
 - Product photos: never hotlink Open Food Facts. Every match goes through `tools/review.json`, and the footer and popup credit stays.
 - Do not put personal contact details in the code. The Open Food Facts user agent uses the repo URL, or `OFF_CONTACT` if set.
 

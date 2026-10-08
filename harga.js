@@ -54,7 +54,7 @@ export function lookupMap(rows) {
 // Snapshot built by tools/snapshot.mjs and published with the site, so the browser can skip the parquet download.
 // Rows are arrays to keep the JSON small; prices are flat [premise, price, dateIndex, ...] per item.
 const ITEM_COLS = ['item', 'unit', 'item_group', 'item_category']
-const PREMISE_COLS = ['premise', 'premise_type', 'state', 'district']
+const PREMISE_COLS = ['premise', 'premise_type', 'state', 'district', 'address'] // append new columns, so older snapshots still read
 export function packSnapshot({ month, latest, index, items, premises }) {
   const dates = [], dateIdx = new Map(), used = new Set()
   const prices = [...index].map(([item, shops]) => [item, [...shops].flatMap(([premise, { price, date }]) => {
@@ -96,6 +96,32 @@ export function priceChange(months, series) {
   if (known.length < 2) return null
   const [[from, fromMonth], [to, toMonth]] = known.slice(-2)
   return { change: to / from - 1, from, to, fromMonth, toMonth }
+}
+
+// Change from the first known price to the last, e.g. a basket over the whole history.
+export function changeSince(months, series) {
+  const known = series.map((p, i) => [p, months[i]]).filter(([p]) => p != null)
+  if (known.length < 2) return null
+  const [[from, fromMonth], [to, toMonth]] = [known[0], known.at(-1)]
+  return { change: to / from - 1, from, to, fromMonth, toMonth }
+}
+// What a list of {item, qty} cost each month at typical prices. A month missing any item is null, so totals compare like with like.
+export function basketHistory({ months, items }, list) {
+  return months.map((_, k) => {
+    let total = 0
+    for (const { item, qty } of list) {
+      const p = items.get(item)?.[k]
+      if (p == null) return null
+      total += p * qty
+    }
+    return total
+  })
+}
+
+// Google Maps search for a shop. PriceCatcher has no coordinates, so search by name and whatever address it gives.
+export function mapsUrl(p) {
+  const q = [p.premise, p.address, p.district, p.state].map(s => String(s ?? '').trim()).filter(Boolean).join(', ')
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`
 }
 
 // Remove likely data-entry errors: prices under a third or over three times the item's national median.
