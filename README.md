@@ -14,6 +14,7 @@ Find the cheapest groceries in Malaysia, using official government price data.
 - **Price history.** See how an item's typical price across Malaysia moved over the last 12 months, and whether it is cheaper or dearer than last month.
 - **Basket over time.** See what your basket would have cost each month at typical prices, e.g. RM84 in March and RM91 now.
 - **Directions.** Open any shop in Google Maps with one tap.
+- **Install it.** Add harga to your home screen or dock like an app. In Chrome or Edge, use the install icon in the address bar. On an iPhone, use Share → Add to Home Screen. You still need a connection to load prices.
 
 ## How it works
 
@@ -46,8 +47,9 @@ npm run snapshot   # optional: build data/prices.json and data/history.json, lik
 | `app.js` | The user interface |
 | `harga.js` | Price logic with no UI code, tested in `harga.test.mjs` |
 | `i18n.js`, `items.js`, `districts.js` | Translations, item names and district locations |
+| `manifest.webmanifest`, `icons/` | App name and icons for installing. Icons are made by `tools/icons.mjs` |
 | `images.js`, `img/` | Product photos. Generated, so don't edit them by hand |
-| `tools/` | Scripts for the price snapshot, price history and product photos |
+| `tools/` | Scripts for the price snapshot, price history, product photos and app icons |
 
 GitHub Actions runs the tests on every push. It deploys `main` to GitHub Pages on each push and once a day.
 
