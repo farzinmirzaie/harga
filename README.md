@@ -1,80 +1,61 @@
 # harga
 
-Compare grocery prices across Malaysian shops with official data, and find the cheapest way to buy a whole shopping list.
+Find the cheapest groceries in Malaysia, using official government price data.
 
-**Live:** https://farzinmirzaie.github.io/harga/
+**Try it:** https://farzinmirzaie.github.io/harga/
 
-*Harga* is Malay for "price". The app reads KPDN's [PriceCatcher](https://data.gov.my/data-catalogue/pricecatcher) data straight from data.gov.my in the browser. There is no backend, no build step and no account.
+*Harga* means "price" in Malay. Search about 340 everyday items, see what each shop near you charges, and build a basket to find the cheapest place to buy it all. Works in English, Bahasa Melayu and 中文, on phones and desktops, with no sign-up.
 
-## What it does
+## Features
 
-- Search about 340 tracked items in English, Bahasa Melayu or Chinese, and browse by category.
-- Filter by state and district. "Near me" picks your district from your device location, and the location never leaves the browser.
-- See the lowest, typical and highest price for an item, with every shop ranked.
-- Build a basket. It shows two plans: the cheapest split across several shops, and the best single shop with any missing items listed.
-- Light and dark themes, and a layout for phones and desktops. It meets WCAG 2.2 AA in automated checks.
+- **Compare prices.** See the lowest, typical and highest price for an item, with every shop ranked.
+- **Near you.** Filter by state and district, or tap "Near me". Your location never leaves your device.
+- **Plan a shop.** Add items to a basket and choose between the cheapest split across several shops and the best single shop.
 
 ## How it works
 
-1. The browser downloads the current month's PriceCatcher file. That is a Parquet file of about 2 MB with about 1.4M price reports. If KPDN has not published the current month yet, it falls back to the previous month.
-2. [hyparquet](https://github.com/hyparam/hyparquet) parses the file in under a second and keeps the latest price per shop and item.
-3. Prices below a third or above three times an item's national median are dropped as likely data-entry errors.
-4. Everything else, including search, the basket plans and district matching, runs in plain JavaScript in the page.
+Prices come from [PriceCatcher](https://data.gov.my/data-catalogue/pricecatcher), where KPDN publishes about 1.4 million shop price reports a month.
 
-## Run locally
+Once a day, a GitHub Action downloads the latest month and keeps each shop's newest price per item. It drops obvious typos: prices under a third or over three times the national median. Then it publishes the result with the site as one small JSON file. Everything else runs in your browser, and there is no server.
 
-Requires Node 24 for tests and tools. The site itself is static files.
+If that file is missing, for example when you run the site locally, the app reads PriceCatcher directly instead.
+
+## Run it locally
+
+You need Node 24 and Python 3.
 
 ```bash
 npm install
-npm start          # serves the folder on http://localhost:4173
-npm test           # unit tests, offline
-npm run test:live  # also downloads the real PriceCatcher file and checks it parses
+npm start          # http://localhost:4173
+npm test           # unit tests
+npm run snapshot   # optional: build data/prices.json, like the daily Action does
 ```
 
-Any static file server works in place of `npm start`, which uses Python's built-in server. Opening `index.html` from disk does not work, because ES modules need HTTP.
+## Code layout
+
+| Path | What it is |
+|---|---|
+| `index.html` | Page markup and all CSS |
+| `app.js` | The user interface |
+| `harga.js` | Price logic with no UI code, tested in `harga.test.mjs` |
+| `i18n.js`, `items.js`, `districts.js` | Translations, item names and district locations |
+| `images.js`, `img/` | Product photos. Generated, so don't edit them by hand |
+| `tools/` | Scripts for the price snapshot and product photos |
+
+GitHub Actions runs the tests on every push. It deploys `main` to GitHub Pages on each push and once a day.
 
 ## Product photos
 
-40 branded items show a front-of-pack photo from [Open Food Facts](https://world.openfoodfacts.org). PriceCatcher has no barcodes, so a one-off tool matches items by brand, name and pack size:
+About 40 branded items have a photo from [Open Food Facts](https://world.openfoodfacts.org). PriceCatcher has no barcodes, so `npm run images` matches items by brand, name and pack size. A person then checks every match and records wrong ones in `tools/review.json`.
 
-```bash
-npm run images                # uses the cached catalogue in .cache/
-npm run images -- --refresh
-```
+## Credits
 
-The tool identifies itself to Open Food Facts with this repo's URL. Set `OFF_CONTACT` to override it. It prints a review table and writes `images.js` and `img/`. A person must check every match. Record wrong products or poor photos in `tools/review.json` under `reject`, and correct matches that scored too low under `accept`. The current list was reviewed by eye on a contact sheet.
-
-## Deploy
-
-GitHub Actions runs the tests on every push and pull request, and deploys `main` to GitHub Pages (`.github/workflows/pages.yml`). Only `index.html`, the root `*.js` modules and `img/` are published.
-
-## Project layout
-
-| Path | Purpose |
-|---|---|
-| `index.html` | Markup and all CSS, including the design tokens |
-| `app.js` | UI: data loading, rendering, basket, dialogs, location, animation |
-| `harga.js` | Pure logic with no DOM: parsing, outlier filter, price ranking, basket plans, search, nearest district |
-| `i18n.js` | UI strings in EN, BM and 中文, plus category names |
-| `items.js` | English and Chinese names per PriceCatcher item code |
-| `districts.js` | District centre points, used for "Near me" |
-| `images.js`, `img/` | Generated photo map and thumbnails. Do not edit by hand |
-| `harga.test.mjs` | Unit tests, plus a live data check behind `--live` |
-| `tools/` | Photo matching tool and its review decisions |
-
-## Data and credits
-
-| Source | Used for | Licence |
-|---|---|---|
-| [PriceCatcher](https://data.gov.my/data-catalogue/pricecatcher), KPDN via data.gov.my | Prices, items, shops | CC BY 4.0 |
-| [DOSM district boundaries](https://github.com/dosm-malaysia/data-open) | District centre points | CC BY 4.0 |
-| [Open Food Facts](https://world.openfoodfacts.org) | Product photos | CC BY-SA, by Open Food Facts contributors |
-
-The English and Chinese item names are our own translations and have not been checked by a native speaker. The 36 district centres for areas without an official boundary, such as Kuala Lumpur's parliamentary areas, are hand-entered approximations.
+- Prices: [PriceCatcher](https://data.gov.my/data-catalogue/pricecatcher), KPDN via data.gov.my, CC BY 4.0
+- District locations: [DOSM](https://github.com/dosm-malaysia/data-open), CC BY 4.0
+- Product photos: Open Food Facts contributors, CC BY-SA
 
 ## Limitations
 
-- Prices are the latest report per shop in the month and can be out of date. The app shows the report date for each shop.
-- "Near me" matches the nearest district centre, so it can pick the neighbouring district near a border.
-- Photo coverage is about a quarter of branded items. Many Malaysian brands are not in Open Food Facts yet.
+- Each price is the shop's latest report this month, so it may be a few weeks old. The app shows the report date.
+- "Near me" picks the closest district centre, so near a border it can choose the neighbouring district.
+- The English and Chinese item names have not been checked by a native speaker.

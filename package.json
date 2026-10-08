@@ -2,11 +2,12 @@
   "name": "harga",
   "private": true,
   "type": "module",
-  "description": "Compare Malaysian grocery prices from official KPDN PriceCatcher data. Static site, no backend.",
+  "description": "Find the cheapest groceries in Malaysia with official KPDN PriceCatcher prices. Static site, no backend.",
   "scripts": {
     "start": "python3 -m http.server 4173",
     "test": "node harga.test.mjs",
     "test:live": "node harga.test.mjs --live",
+    "snapshot": "node tools/snapshot.mjs",
     "images": "node tools/match-images.mjs"
   },
   "devDependencies": {

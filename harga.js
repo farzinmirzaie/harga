@@ -23,8 +23,8 @@ export async function readPrices(file, parquetRead, compressors) {
   for (const g of groups.values()) {
     for (let i = 0; i < g.price.length; i++) {
       const item = Number(g.item_code[i]), premise = Number(g.premise_code[i]), price = g.price[i]
+      if (item < 0 || premise < 0 || !(price > 0) || !g.date[i]) continue
       const date = g.date[i].toISOString().slice(0, 10)
-      if (item < 0 || premise < 0 || !(price > 0)) continue
       if (date > latest) latest = date
       let shops = index.get(item)
       if (!shops) index.set(item, shops = new Map())
@@ -34,6 +34,37 @@ export async function readPrices(file, parquetRead, compressors) {
   }
   dropOutliers(index)
   return { index, latest }
+}
+
+// Lookup parquet rows -> Map<code, row>. The item and premise files share this shape; code -1 rows are placeholders.
+export function lookupMap(rows) {
+  return new Map(rows.filter(r => r.item_code > 0n || r.premise_code > 0n)
+    .map(r => [Number(r.item_code ?? r.premise_code), r]))
+}
+
+// Snapshot built by tools/snapshot.mjs and published with the site, so the browser can skip the parquet download.
+// Rows are arrays to keep the JSON small; prices are flat [premise, price, dateIndex, ...] per item.
+const ITEM_COLS = ['item', 'unit', 'item_group', 'item_category']
+const PREMISE_COLS = ['premise', 'premise_type', 'state', 'district']
+export function packSnapshot({ month, latest, index, items, premises }) {
+  const dates = [], dateIdx = new Map(), used = new Set()
+  const prices = [...index].map(([item, shops]) => [item, [...shops].flatMap(([premise, { price, date }]) => {
+    used.add(premise)
+    if (!dateIdx.has(date)) { dateIdx.set(date, dates.length); dates.push(date) }
+    return [premise, price, dateIdx.get(date)]
+  })])
+  const pick = (map, codes, cols) => [...codes].filter(c => map.has(c)).map(c => [c, ...cols.map(k => map.get(c)[k] ?? null)])
+  return { v: 1, month, latest, dates, prices, items: pick(items, index.keys(), ITEM_COLS), premises: pick(premises, used, PREMISE_COLS) }
+}
+export function unpackSnapshot(s) {
+  if (s?.v !== 1) throw new Error('unknown snapshot version')
+  const rows = (list, cols) => new Map(list.map(([c, ...v]) => [c, Object.fromEntries(cols.map((k, n) => [k, v[n]]))]))
+  const index = new Map(s.prices.map(([item, flat]) => {
+    const shops = new Map()
+    for (let i = 0; i < flat.length; i += 3) shops.set(flat[i], { price: flat[i + 1], date: s.dates[flat[i + 2]] })
+    return [item, shops]
+  }))
+  return { month: s.month, latest: s.latest, index, items: rows(s.items, ITEM_COLS), premises: rows(s.premises, PREMISE_COLS) }
 }
 
 // Remove likely data-entry errors: prices under a third or over three times the item's national median.
@@ -70,7 +101,7 @@ export function bestShops(index, list, area) {
     .sort((a, b) => b.have - a.have || a.total - b.total)
 }
 
-// Cheapest shop per item. ponytail: no cap on the number of shops; add a max-stops limit if users complain.
+// Cheapest shop per item. There is no cap on the number of shops; add a max-stops limit if it gets impractical.
 export function splitTrip(index, list, area) {
   const picks = [], missing = []
   let total = 0

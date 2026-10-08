@@ -1,7 +1,8 @@
 // node harga.test.mjs  (add --live to also read the real PriceCatcher file)
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { DISTRICTS } from './districts.js'
-import { monthsToTry, cheapest, bestShops, splitTrip, matches, rank, dropOutliers, nearestDistrict, readPrices, SRC } from './harga.js'
+import { monthsToTry, cheapest, bestShops, splitTrip, matches, rank, dropOutliers, nearestDistrict, readPrices, lookupMap, packSnapshot, unpackSnapshot, SRC } from './harga.js'
 
 assert.deepEqual(monthsToTry(new Date('2026-09-30T17:00:00Z')), ['2026-10', '2026-09', '2026-08']) // 01:00 MYT on 1 Oct
 assert.deepEqual(monthsToTry(new Date('2026-01-05T00:00:00Z')), ['2026-01', '2025-12', '2025-11'])
@@ -37,13 +38,41 @@ assert.deepEqual(nearestDistrict(DISTRICTS, 3.158, 101.712).row.slice(2), ['W.P.
 assert.equal(nearestDistrict(DISTRICTS, 1.492, 103.741).row[2], 'Johor') // Johor Bahru
 assert.equal(nearestDistrict(DISTRICTS, 5.414, 100.329).row[2], 'Pulau Pinang') // George Town
 assert.ok(nearestDistrict(DISTRICTS, 52.37, 4.9).km > 5000) // Amsterdam
+
+// Snapshot round trip keeps prices, dates and the lookup fields the UI reads
+const items = lookupMap([{ item_code: -1n, item: 'X' }, { item_code: 1n, item: 'AYAM', unit: '1kg', item_group: 'G', item_category: 'C' }, { item_code: 2n, item: 'TELUR', unit: '10 biji' }])
+const premises = lookupMap([{ premise_code: 10n, premise: 'KEDAI A', state: 'Johor', district: 'Muar' }, { premise_code: 20n, premise: 'KEDAI B' }, { premise_code: 99n, premise: 'UNUSED' }])
+assert.deepEqual([...items.keys()], [1, 2])
+const snap = unpackSnapshot(JSON.parse(JSON.stringify(packSnapshot({ month: '2026-09', latest: '2026-09-01', index, items, premises }))))
+assert.deepEqual(snap.index, index)
+assert.equal(snap.items.get(1).item_category, 'C')
+assert.equal(snap.items.get(2).item_group, null)
+assert.equal(snap.premises.get(10).district, 'Muar')
+assert.ok(!snap.premises.has(99)) // shops with no prices are left out
+assert.throws(() => unpackSnapshot({ v: 2 }))
+
+// readPrices: BigInt codes, Date dates, latest report per shop wins, rows without a date are skipped
+const day = s => new Date(s + 'T00:00:00Z')
+const fakeRead = async ({ onChunk }) => onChunk && [
+  ['date', [day('2026-09-01'), day('2026-09-03'), null, day('2026-09-02')]],
+  ['premise_code', [10n, 10n, 20n, -1n]], ['item_code', [1n, 1n, 1n, 1n]], ['price', [5, 6, 7, 8]],
+].forEach(([columnName, columnData]) => onChunk({ columnName, columnData, rowStart: 0 }))
+const read = await readPrices(null, fakeRead)
+assert.deepEqual(read.index.get(1), new Map([[10, { price: 6, date: '2026-09-03' }]]))
+assert.equal(read.latest, '2026-09-03')
+// The browser imports hyparquet from a CDN; keep those pinned versions equal to the lockfile (Dependabot bumps only the lockfile)
+const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url))).packages
+for (const [, pkg, ver] of readFileSync(new URL('./app.js', import.meta.url), 'utf8').matchAll(/npm\/(hyparquet[\w-]*)@([\d.]+)/g))
+  assert.equal(ver, lock[`node_modules/${pkg}`].version, `app.js loads ${pkg}@${ver}; package-lock.json has ${lock[`node_modules/${pkg}`].version}`)
 console.log('unit ok')
 
 if (process.argv.includes('--live')) {
   const { parquetRead } = await import('hyparquet')
   const { compressors } = await import('hyparquet-compressors')
   const month = monthsToTry()[1]
-  const file = await (await fetch(`${SRC}pricecatcher_${month}.parquet`)).arrayBuffer()
+  const r = await fetch(`${SRC}pricecatcher_${month}.parquet`)
+  assert.ok(r.ok, `${r.status} for ${month}`)
+  const file = await r.arrayBuffer()
   const { index, latest } = await readPrices(file, parquetRead, compressors)
   assert.ok(index.size > 200, `only ${index.size} items`)
   assert.ok(latest.startsWith(month))

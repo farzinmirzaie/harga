@@ -1,4 +1,4 @@
-import { SRC, monthsToTry, readPrices, cheapest, bestShops, splitTrip, matches, rank, nearestDistrict } from './harga.js'
+import { SRC, monthsToTry, readPrices, lookupMap, unpackSnapshot, cheapest, bestShops, splitTrip, matches, rank, nearestDistrict } from './harga.js'
 import { LANGS, T, CATS } from './i18n.js'
 import { ITEMS } from './items.js'
 import { DISTRICTS } from './districts.js'
@@ -53,11 +53,12 @@ const t = () => T[ui.lang]
 const locale = () => LANGS.find(l => l[0] === ui.lang)[2]
 const day = d => new Date(d + 'T00:00:00Z').toLocaleDateString(locale(), { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-// Streams the body so the progress bar moves with real bytes. Falls back to arrayBuffer() without Content-Length.
+// Streams the body so the progress bar moves with real bytes. Falls back to arrayBuffer() without Content-Length,
+// or when the body is compressed, because Content-Length then counts compressed bytes and progress would pass 100%.
 async function fetchBuf(url, onProgress) {
   const r = await fetch(url)
   if (!r.ok) throw Object.assign(new Error(`${r.status} ${url}`), { status: r.status })
-  const total = Number(r.headers.get('content-length'))
+  const total = r.headers.get('content-encoding') ? 0 : Number(r.headers.get('content-length'))
   if (!onProgress || !total || !r.body) return r.arrayBuffer()
   const reader = r.body.getReader(), chunks = []
   let got = 0
@@ -74,15 +75,23 @@ async function fetchBuf(url, onProgress) {
   return out.buffer
 }
 async function load(progress) {
+  try { return await loadSnapshot(progress) }
+  catch (e) { console.info('No snapshot, reading PriceCatcher directly:', e.message) }
+  await loadLive(progress)
+}
+// data/prices.json is built daily by the deploy workflow. It is absent locally, so the live path below still runs there.
+async function loadSnapshot(progress) {
+  const buf = await fetchBuf('data/prices.json', f => progress(0.05 + f * 0.85, t().loading))
+  progress(0.92, t().parsing)
+  const s = unpackSnapshot(JSON.parse(new TextDecoder().decode(buf)))
+  ;[items, premises, index, latest] = [s.items, s.premises, s.index, s.latest]
+}
+async function loadLive(progress) {
   const [{ parquetRead, parquetReadObjects }, { compressors }] = await Promise.all([
     import('https://cdn.jsdelivr.net/npm/hyparquet@1.31.2/+esm'),
     import('https://cdn.jsdelivr.net/npm/hyparquet-compressors@1.1.2/+esm'),
   ])
-  const lookup = async name => {
-    const rows = await parquetReadObjects({ file: await fetchBuf(SRC + name), compressors })
-    return new Map(rows.filter(r => r.item_code > 0n || r.premise_code > 0n)
-      .map(r => [Number(r.item_code ?? r.premise_code), r]))
-  }
+  const lookup = async name => lookupMap(await parquetReadObjects({ file: await fetchBuf(SRC + name), compressors }))
   const lookups = Promise.all([lookup('lookup_item.parquet'), lookup('lookup_premise.parquet')])
   lookups.catch(() => {}) // awaited below; this stops an unhandled rejection if the price file fails first
   let buf, lastErr
@@ -369,7 +378,7 @@ function fadeChips() {
 
 // Location stays on the device: the browser gives coordinates, we match the nearest bundled district centre.
 function locate(auto) {
-  if (!navigator.geolocation) return
+  if (!navigator.geolocation || !premises) return
   const btn = $('#locate')
   btn.setAttribute('aria-busy', 'true')
   navigator.geolocation.getCurrentPosition(pos => {
@@ -449,7 +458,7 @@ $('#q').addEventListener('input', e => { clearTimeout(debounce); debounce = setT
 $('#state').addEventListener('change', e => { ui.state = e.target.value; ui.district = ''; renderFilters(); render() })
 $('#district').addEventListener('change', e => { ui.district = e.target.value; render() })
 document.addEventListener('keydown', e => {
-  if (e.key === '/' && document.activeElement !== $('#q') && !$('#detail').open) { e.preventDefault(); $('#q').focus() }
+  if (e.key === '/' && document.activeElement !== $('#q') && !$('dialog[open]')) { e.preventDefault(); $('#q').focus() }
 })
 for (const dlg of document.querySelectorAll('dialog')) {
   dlg.addEventListener('click', e => { if (e.target === dlg) closeDialog(dlg) })
@@ -459,7 +468,7 @@ $('#sheet').addEventListener('close', () => $('.layout').append($('#basket')))
 mobile.addEventListener('change', e => { if (!e.matches && $('#sheet').open) $('#sheet').close() })
 $('#chips').addEventListener('scroll', fadeChips, { passive: true })
 addEventListener('resize', fadeChips)
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderTheme)
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderTheme())
 document.addEventListener('click', e => {
   const b = e.target.closest('button')
   if (!b) return

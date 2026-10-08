@@ -1,4 +1,5 @@
 node_modules/
 .cache/
 _site/
+data/
 .DS_Store

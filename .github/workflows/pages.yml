@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Daily rebuild so the published price snapshot stays current. 09:17 in Malaysia.
+  schedule:
+    - cron: '17 1 * * *'
 
 permissions:
   contents: read
@@ -22,7 +25,7 @@ jobs:
       - run: npm test
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -36,13 +39,21 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-      # Publish only what the browser loads: the page, the root *.js modules and the product photos.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Publish only what the browser loads: the page, the root *.js modules, the product photos and the price snapshot.
       # Tests (*.mjs), tools/ and node_modules/ stay out.
       - name: Collect site files
         run: |
           mkdir _site
           cp index.html *.js _site/
           cp -r img _site/
+      # If data.gov.my is down this fails the run, so the last good deployment, with its snapshot, stays live.
+      - name: Build price snapshot
+        run: node tools/snapshot.mjs _site/data
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
