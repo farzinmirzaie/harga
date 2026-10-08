@@ -11,12 +11,17 @@ Find the cheapest groceries in Malaysia, using official government price data.
 - **Compare prices.** See the lowest, typical and highest price for an item, with every shop ranked.
 - **Near you.** Filter by state and district, or tap "Near me". Your location never leaves your device.
 - **Plan a shop.** Add items to a basket and choose between the cheapest split across several shops and the best single shop.
+- **Price history.** See how an item's typical price across Malaysia moved over the last 12 months, and whether it is cheaper or dearer than last month.
 
 ## How it works
 
 Prices come from [PriceCatcher](https://data.gov.my/data-catalogue/pricecatcher), where KPDN publishes about 1.4 million shop price reports a month.
 
-Once a day, a GitHub Action downloads the latest month and keeps each shop's newest price per item. It drops obvious typos: prices under a third or over three times the national median. Then it publishes the result with the site as one small JSON file. Everything else runs in your browser, and there is no server.
+Once a day, a GitHub Action downloads the latest month and keeps each shop's newest price per item. It drops obvious typos: prices under a third or over three times the national median. Then it publishes the result with the site as one small JSON file.
+
+The same Action also works out each item's typical (median) price across Malaysia for each of the last 12 months. Past months don't change, so it reuses them from the published site and only downloads the current month.
+
+Everything else runs in your browser, and there is no server.
 
 If that file is missing, for example when you run the site locally, the app reads PriceCatcher directly instead.
 
@@ -28,7 +33,7 @@ You need Node 24 and Python 3.
 npm install
 npm start          # http://localhost:4173
 npm test           # unit tests
-npm run snapshot   # optional: build data/prices.json, like the daily Action does
+npm run snapshot   # optional: build data/prices.json and data/history.json, like the daily Action does
 ```
 
 ## Code layout
@@ -40,7 +45,7 @@ npm run snapshot   # optional: build data/prices.json, like the daily Action doe
 | `harga.js` | Price logic with no UI code, tested in `harga.test.mjs` |
 | `i18n.js`, `items.js`, `districts.js` | Translations, item names and district locations |
 | `images.js`, `img/` | Product photos. Generated, so don't edit them by hand |
-| `tools/` | Scripts for the price snapshot and product photos |
+| `tools/` | Scripts for the price snapshot, price history and product photos |
 
 GitHub Actions runs the tests on every push. It deploys `main` to GitHub Pages on each push and once a day.
 
@@ -56,6 +61,7 @@ About 40 branded items have a photo from [Open Food Facts](https://world.openfoo
 
 ## Limitations
 
+- The price history is a nationwide typical price, not your area's, and the current month is still in progress.
 - Each price is the shop's latest report this month, so it may be a few weeks old. The app shows the report date.
 - "Near me" picks the closest district centre, so near a border it can choose the neighbouring district.
 - The English and Chinese item names have not been checked by a native speaker.

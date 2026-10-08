@@ -7,6 +7,15 @@ export function monthsToTry(now = new Date()) {
   return [0, 1, 2].map(k => new Date(Date.UTC(myt.getUTCFullYear(), myt.getUTCMonth() - k, 1)).toISOString().slice(0, 7))
 }
 
+// `n` months ending at `month` (YYYY-MM), newest first.
+export function monthsBefore(month, n) {
+  const [y, m] = month.split('-').map(Number)
+  return Array.from({ length: n }, (_, k) => new Date(Date.UTC(y, m - 1 - k, 1)).toISOString().slice(0, 7))
+}
+
+// The "typical" price: lower middle of the sorted prices, as shown in the item popup.
+export const median = sorted => sorted[Math.floor((sorted.length - 1) / 2)]
+
 // Price parquet -> Map<item, Map<premise, {price, date}>>, keeping the latest observation per shop and item.
 export async function readPrices(file, parquetRead, compressors) {
   const groups = new Map()
@@ -65,6 +74,28 @@ export function unpackSnapshot(s) {
     return [item, shops]
   }))
   return { month: s.month, latest: s.latest, index, items: rows(s.items, ITEM_COLS), premises: rows(s.premises, PREMISE_COLS) }
+}
+
+// Price history: one typical (median) nationwide price per item per month, built by tools/snapshot.mjs.
+export function typicalPrices(index) {
+  return new Map([...index].map(([item, shops]) => [item, median([...shops.values()].map(o => o.price).sort((a, b) => a - b))]))
+}
+// perMonth: Map<YYYY-MM, Map<item, price>>. Months are stored oldest first; a month without the item is null.
+export function packHistory(perMonth) {
+  const months = [...perMonth.keys()].sort()
+  const codes = [...new Set([...perMonth.values()].flatMap(m => [...m.keys()]))].sort((a, b) => a - b)
+  return { v: 1, months, items: codes.map(c => [c, months.map(m => perMonth.get(m).get(c) ?? null)]) }
+}
+export function unpackHistory(h) {
+  if (h?.v !== 1) throw new Error('unknown history version')
+  return { months: h.months, items: new Map(h.items) }
+}
+// Change of the last known price against the one before it, as a fraction, with the months compared.
+export function priceChange(months, series) {
+  const known = series.map((p, i) => [p, months[i]]).filter(([p]) => p != null)
+  if (known.length < 2) return null
+  const [[from, fromMonth], [to, toMonth]] = known.slice(-2)
+  return { change: to / from - 1, from, to, fromMonth, toMonth }
 }
 
 // Remove likely data-entry errors: prices under a third or over three times the item's national median.

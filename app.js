@@ -1,4 +1,4 @@
-import { SRC, monthsToTry, readPrices, lookupMap, unpackSnapshot, cheapest, bestShops, splitTrip, matches, rank, nearestDistrict } from './harga.js'
+import { SRC, monthsToTry, readPrices, lookupMap, unpackSnapshot, unpackHistory, priceChange, median, cheapest, bestShops, splitTrip, matches, rank, nearestDistrict } from './harga.js'
 import { LANGS, T, CATS } from './i18n.js'
 import { ITEMS } from './items.js'
 import { DISTRICTS } from './districts.js'
@@ -107,6 +107,18 @@ async function loadLive(progress) {
   ;[items, premises, index, latest] = [it, pr, res.index, res.latest]
 }
 
+// Typical nationwide price per month, also built by the deploy workflow. Optional: without it the popup has no trend.
+let history = null
+async function loadHistory() {
+  try {
+    const r = await fetch('data/history.json')
+    if (!r.ok) return
+    history = unpackHistory(await r.json())
+    const dlg = $('#detail')
+    if (dlg.open) dlg.querySelector('.history-slot').innerHTML = trend(Number(dlg.dataset.code))
+  } catch (e) { console.info('No price history:', e.message) }
+}
+
 function area() {
   const s = new Set()
   for (const [code, p] of premises) {
@@ -135,13 +147,13 @@ const shop = code => premises.get(code) ?? { premise: `#${code}` }
 const shopType = p => esc(p.premise_type?.trim() ?? '')
 function stats(shops) {
   const p = shops.map(s => s.price)
-  return { lo: p[0], hi: p.at(-1), med: p[Math.floor((p.length - 1) / 2)], n: p.length }
+  return { lo: p[0], hi: p.at(-1), med: median(p), n: p.length }
 }
 
 /* Static chrome: language, theme, headline, chips, selects */
 function renderChrome() {
   document.documentElement.lang = ui.lang === 'zh' ? 'zh-Hans' : ui.lang
-  $('#lang').innerHTML = LANGS.map(([k, label, , name]) => `<button data-lang="${k}" lang="${k === 'zh' ? 'zh-Hans' : k}" aria-label="${name}" aria-pressed="${k === ui.lang}">${label}</button>`).join('')
+  $('#lang').innerHTML = LANGS.map(([k, label, , name]) => `<button data-lang="${k}" lang="${k === 'zh' ? 'zh-Hans' : k}" aria-label="${label === name ? name : `${label}, ${name}`}" aria-pressed="${k === ui.lang}">${label}</button>`).join('')
   $('#headline').innerHTML = t().headline
   $('#q').placeholder = t().search
   $('#q').setAttribute('aria-label', t().search)
@@ -240,6 +252,7 @@ function openDetail(code) {
         <div class="stat"><dt class="label">${t().highest}</dt><dd class="cond">${rm(s.hi)}</dd></div>
       </dl>
     </div>
+    <div class="history-slot">${trend(code)}</div>
     <ol class="shoplist">${shops.slice(0, 25).map((x, n) => {
       const p = shop(x.premise)
       return `<li class="${x.price === s.lo ? 'lo' : ''}" style="--i:${n}"><span class="rk">${n + 1}</span>
@@ -250,6 +263,37 @@ function openDetail(code) {
     ${shops.length > 25 ? `<p class="muted" style="padding:0 24px">${t().more(shops.length - 25)}</p>` : ''}
     <div class="dlg-foot">${cta(code)}</div>`
   if (!dlg.open) dlg.showModal()
+}
+// 12-month line of the typical nationwide price, with the change against the month before the latest.
+const monthName = m => new Date(m + '-01T00:00:00Z').toLocaleDateString(locale(), { month: 'short', year: 'numeric', timeZone: 'UTC' })
+function trend(code) {
+  const series = history?.items.get(code), ch = series && priceChange(history.months, series)
+  if (!ch) return ''
+  const known = series.filter(p => p != null), lo = Math.min(...known), hi = Math.max(...known)
+  const W = 600, H = 80, x = i => (i / (series.length - 1)) * W, y = p => H - 4 - ((p - lo) / (hi - lo || 1)) * (H - 8)
+  // Break the line where a month has no price
+  const segs = [], pts = []
+  series.forEach((p, i) => {
+    if (p == null) return
+    const pt = [x(i).toFixed(1), y(p).toFixed(1)]
+    if (series[i - 1] == null) segs.push([])
+    segs.at(-1).push(pt)
+    pts.push(pt)
+  })
+  const line = segs.map(s => 'M' + s.map(p => p.join(' ')).join('L')).join('')
+  const area = segs.filter(s => s.length > 1).map(s => `M${s[0][0]} ${H}L${s.map(p => p.join(' ')).join('L')}L${s.at(-1)[0]} ${H}Z`).join('')
+  const pct = Math.round(Math.abs(ch.change) * 100), from = monthName(ch.fromMonth)
+  const badge = !pct ? `<span class="badge flat">${t().trendSame(from)}</span>`
+    : ch.change > 0 ? `<span class="badge warn">${t().trendUp(pct, from)}</span>` : `<span class="badge good">${t().trendDown(pct, from)}</span>`
+  const first = series.findIndex(p => p != null)
+  return `<section class="history" style="--c:var(--g${groupIdx(items.get(code).item_group)})">
+    <div class="history-head"><h3 class="label">${t().trend}</h3>${badge}</div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t().trendLabel(rm(series[first]), monthName(history.months[first]), rm(ch.to), monthName(ch.toMonth)))}">
+      <path class="area" d="${area}"/><path class="line" d="${line}" pathLength="1"/>
+      <circle class="end" cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="6"/>
+    </svg>
+    <div class="history-axis" aria-hidden="true"><span>${monthName(history.months[first])} · <b>${rm(series[first])}</b></span><span>${monthName(ch.toMonth)} · <b>${rm(ch.to)}</b></span></div>
+  </section>`
 }
 const cta = code => inBasket(code)
   ? `<button class="cta secondary" data-toggle="${code}">${I.check} ${t().inBasket}</button>`
@@ -522,6 +566,7 @@ async function boot() {
     await load(progress)
     progress(1)
     $('#progress').classList.add('done')
+    loadHistory()
     ui.list = ui.list.filter(l => items.has(l.item))
     $('#q').disabled = false
     renderFilters()

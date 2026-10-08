@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DISTRICTS } from './districts.js'
-import { monthsToTry, cheapest, bestShops, splitTrip, matches, rank, dropOutliers, nearestDistrict, readPrices, lookupMap, packSnapshot, unpackSnapshot, SRC } from './harga.js'
+import { monthsToTry, cheapest, bestShops, splitTrip, matches, rank, dropOutliers, nearestDistrict, readPrices, lookupMap, packSnapshot, unpackSnapshot, monthsBefore, median, typicalPrices, packHistory, unpackHistory, priceChange, SRC } from './harga.js'
 
 assert.deepEqual(monthsToTry(new Date('2026-09-30T17:00:00Z')), ['2026-10', '2026-09', '2026-08']) // 01:00 MYT on 1 Oct
 assert.deepEqual(monthsToTry(new Date('2026-01-05T00:00:00Z')), ['2026-01', '2025-12', '2025-11'])
@@ -60,7 +60,23 @@ const fakeRead = async ({ onChunk }) => onChunk && [
 const read = await readPrices(null, fakeRead)
 assert.deepEqual(read.index.get(1), new Map([[10, { price: 6, date: '2026-09-03' }]]))
 assert.equal(read.latest, '2026-09-03')
-// The browser imports hyparquet from a CDN; keep those pinned versions equal to the lockfile (Dependabot bumps only the lockfile)
+// Price history
+assert.deepEqual(monthsBefore('2026-02', 3), ['2026-02', '2026-01', '2025-12'])
+assert.equal(median([1, 2, 3, 4]), 2)
+assert.equal(median([5]), 5)
+assert.deepEqual(typicalPrices(index), new Map([[1, 4], [2, 2], [3, 7]]))
+const hist = unpackHistory(JSON.parse(JSON.stringify(packHistory(new Map([
+  ['2026-09', new Map([[1, 4], [2, 2]])], ['2026-07', new Map([[1, 5]])], ['2026-08', new Map([[1, 4.5], [3, 7]])],
+])))))
+assert.deepEqual(hist.months, ['2026-07', '2026-08', '2026-09'])
+assert.deepEqual(hist.items.get(1), [5, 4.5, 4])
+assert.deepEqual(hist.items.get(2), [null, null, 2])
+assert.deepEqual(hist.items.get(3), [null, 7, null])
+assert.throws(() => unpackHistory({}))
+assert.deepEqual(priceChange(hist.months, [5, null, 4]), { change: 4 / 5 - 1, from: 5, to: 4, fromMonth: '2026-07', toMonth: '2026-09' })
+assert.equal(priceChange(hist.months, [null, null, 2]), null)
+
+// The browser imports hyparquet from a CDN; keep those pinned versions equal to the lockfile (npm updates only touch the lockfile)
 const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url))).packages
 for (const [, pkg, ver] of readFileSync(new URL('./app.js', import.meta.url), 'utf8').matchAll(/npm\/(hyparquet[\w-]*)@([\d.]+)/g))
   assert.equal(ver, lock[`node_modules/${pkg}`].version, `app.js loads ${pkg}@${ver}; package-lock.json has ${lock[`node_modules/${pkg}`].version}`)

@@ -287,6 +287,17 @@ dialog.closing::backdrop { animation: fade var(--d-fast) var(--ease-in) reverse 
 .stat dd { margin: 0; font-size: 26px; }
 .stat.lo { background: var(--good-bg); }
 .stat.lo dd { color: var(--good); }
+/* Price history in the item popup: typical nationwide price per month */
+.history { margin: 16px 24px 4px; padding: 14px 16px 10px; background: var(--sunk); border-radius: 16px; }
+.history-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.history-head h3 { margin: 0; color: var(--muted); }
+.history svg { display: block; width: 100%; height: auto; margin: 12px 0 6px; overflow: visible; }
+.history .line { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; animation: draw var(--d-slow) var(--ease-out) both; }
+.history .area { fill: var(--c); opacity: .14; }
+.history .end { fill: var(--c); stroke: var(--sunk); stroke-width: 3; }
+.history-axis { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.history-axis b { color: var(--ink); font-weight: 800; }
+.badge.flat { background: var(--surface); color: var(--muted); }
 .shoplist { list-style: none; margin: 0; padding: 6px 24px 16px; }
 .shoplist li { display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .shoplist .rk { font-size: 13px; font-weight: 800; color: var(--muted); }
@@ -345,6 +356,7 @@ footer a { color: inherit; text-underline-offset: 3px; display: inline-block; pa
 .hero-top, .where, .section-head, .tools { transition: opacity var(--d-med); }
 
 /* Motion */
+@keyframes draw { from { stroke-dashoffset: 1; } }
 @keyframes up { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 @keyframes rise { from { transform: translateY(16px); opacity: 0; } }
 @keyframes sink { to { transform: translateY(16px); opacity: 0; } }

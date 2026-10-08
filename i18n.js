@@ -25,6 +25,8 @@ export const T = {
     dec: x => `Fewer ${x}`, inc: x => `More ${x}`, addItem: x => `Add ${x} to basket`, state: 'State', district: 'District', plan: 'Plan', dark: 'Dark mode', clearSearch: 'Clear search',
     photo: 'Photo: Open Food Facts', photos: 'Product photos: Open Food Facts contributors (CC BY-SA)',
     nearMe: 'Near me', locFail: 'Could not get your location. Pick a state instead.', located: x => `Showing prices near ${x}`,
+    trend: 'Typical price across Malaysia', trendSame: m => `Same as ${m}`, trendUp: (p, m) => `${p}% dearer than ${m}`, trendDown: (p, m) => `${p}% cheaper than ${m}`,
+    trendLabel: (a, am, b, bm) => `Typical price across Malaysia went from ${a} in ${am} to ${b} in ${bm}`,
     source: 'Data: PriceCatcher by KPDN via data.gov.my (CC BY 4.0).',
   },
   ms: {
@@ -48,6 +50,8 @@ export const T = {
     dec: x => `Kurangkan ${x}`, inc: x => `Tambah ${x}`, addItem: x => `Tambah ${x} ke troli`, state: 'Negeri', district: 'Daerah', plan: 'Pelan', dark: 'Mod gelap', clearSearch: 'Kosongkan carian',
     photo: 'Foto: Open Food Facts', photos: 'Foto produk: penyumbang Open Food Facts (CC BY-SA)',
     nearMe: 'Berhampiran', locFail: 'Lokasi tidak dapat dikesan. Pilih negeri.', located: x => `Harga berhampiran ${x}`,
+    trend: 'Harga biasa di seluruh Malaysia', trendSame: m => `Sama seperti ${m}`, trendUp: (p, m) => `${p}% lebih mahal daripada ${m}`, trendDown: (p, m) => `${p}% lebih murah daripada ${m}`,
+    trendLabel: (a, am, b, bm) => `Harga biasa di seluruh Malaysia berubah daripada ${a} pada ${am} kepada ${b} pada ${bm}`,
     source: 'Data: PriceCatcher oleh KPDN melalui data.gov.my (CC BY 4.0).',
   },
   zh: {
@@ -71,6 +75,8 @@ export const T = {
     dec: x => `减少 ${x}`, inc: x => `增加 ${x}`, addItem: x => `将 ${x} 加入购物篮`, state: '州属', district: '县区', plan: '方案', dark: '深色模式', clearSearch: '清除搜索',
     photo: '图片：Open Food Facts', photos: '商品图片：Open Food Facts 贡献者（CC BY-SA）',
     nearMe: '附近', locFail: '无法获取位置，请手动选择州属。', located: x => `显示 ${x} 附近的价格`,
+    trend: '全马典型价格', trendSame: m => `与${m}持平`, trendUp: (p, m) => `比${m}贵 ${p}%`, trendDown: (p, m) => `比${m}便宜 ${p}%`,
+    trendLabel: (a, am, b, bm) => `全马典型价格从${am}的 ${a} 变为${bm}的 ${b}`,
     source: '数据：KPDN PriceCatcher，来自 data.gov.my（CC BY 4.0）。',
   },
 }
